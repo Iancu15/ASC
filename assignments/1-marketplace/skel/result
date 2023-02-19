@@ -1,0 +1,57 @@
+Starting test 1
+Finished test 1
+Test 1:		PASSED
+Starting test 2
+Finished test 2
+Test 2:		PASSED
+Starting test 3
+Finished test 3
+Test 3:		PASSED
+Starting test 4
+Finished test 4
+Test 4:		PASSED
+Starting test 5
+Finished test 5
+Test 5:		PASSED
+Starting test 6
+Finished test 6
+Test 6:		PASSED
+Starting test 7
+Finished test 7
+Test 7:		PASSED
+Starting test 8
+Finished test 8
+Test 8:		PASSED
+Starting test 9
+Finished test 9
+Test 9:		PASSED
+Starting test 10
+Finished test 10
+Test 10:		PASSED
+
+Run pylint
+
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/runpy.py", line 194, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib/python3.8/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/usr/lib/python3/dist-packages/pylint/__main__.py", line 7, in <module>
+    pylint.run_pylint()
+  File "/usr/lib/python3/dist-packages/pylint/__init__.py", line 23, in run_pylint
+    PylintRun(sys.argv[1:])
+  File "/usr/lib/python3/dist-packages/pylint/lint.py", line 1731, in __init__
+    linter.check(args)
+  File "/usr/lib/python3/dist-packages/pylint/lint.py", line 1004, in check
+    self._do_check(files_or_modules)
+  File "/usr/lib/python3/dist-packages/pylint/lint.py", line 1165, in _do_check
+    self.check_astroid_module(ast_node, walker, rawcheckers, tokencheckers)
+  File "/usr/lib/python3/dist-packages/pylint/lint.py", line 1252, in check_astroid_module
+    walker.walk(ast_node)
+  File "/usr/lib/python3/dist-packages/pylint/utils/ast_walker.py", line 79, in walk
+    callback(astroid)
+  File "/usr/lib/python3/dist-packages/pylint/checkers/imports.py", line 541, in leave_module
+    std_imports, ext_imports, loc_imports = self._check_imports_order(node)
+  File "/usr/lib/python3/dist-packages/pylint/checkers/imports.py", line 703, in _check_imports_order
+    isort_obj = isort.SortImports(
+AttributeError: module 'isort' has no attribute 'SortImports'

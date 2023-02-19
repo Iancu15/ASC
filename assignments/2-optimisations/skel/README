@@ -1,0 +1,334 @@
+Notatii:
+-A**T este a transpus
+-A[i][j] = A[i * N + j]
+
+1. neopt
+
+Pentru inmultire ma folosesc de algoritmul trivial cu 3 for-uri imbricate, nu
+mi s-a parut ca merita sa folosesc Strassen pentru a scadea complexitatea
+de la O(n^3) la O(n^2.8). Algoritmul este cel care este prezentat si in
+laboratorul 5. Pentru adunare parcurg toate elementele si le adun.
+
+Pentru B**T * B folosesc algoritmul in forma lui normala pentru ca ambele
+matrici sunt matrici oarecare sau poate dense. Pentru a accesa elementul
+de pe linia i si coloana j din B**T folosesc B[j][i]. Metoda aceasta merge
+pentru ca transpusa unei matrici semnifica inversarea liniilor cu coloanele.
+
+Pentru inmultirile dintre o matrice oarecare si o matrice triunghiulara ignor
+elementele care sunt 0 din matricea triunghiulara pentru inmultire. Spre exemplu,
+in cazul inmultirii B * A am formula C[i][j] += B[i][k] * A[k][j].
+k e folosit pentru a trece prin toate liniile, totusi nu sunt nevoit sa trec prin
+toate coloanelele pentru fiecare linie:
+
+pentru linia 0 trebuie sa trec prin toate coloanele pentru ca prima linie e completata
+intr-o matrice superior triunghiulara
+pentru linia 1 pot sari peste prima coloana ca este 0
+pentru linia 2 pot sari peste primele doua coloane care sunt 0
+...
+pentru linia k pot sari peste primele (k - 1) coloane
+
+Astfel for-ul pentru j(coloanele pentru A) il incep de la k pentru a sari peste primele
+(k - 1) coloane.
+
+Rezultatul C al inmultirii B * A va fi tot o matrice oarecare pentru ca tipul matricii
+rezultat din inmultirea unei matrice oarecare cu o matrice superior triunghiulara e
+nedefinit. Astfel aceeasi idee se va face si pentru C * A**T, diferenta e ca trebuie
+sa tin cont de faptul ca matricea A e transpusa. Astfel ca de data asta folosesc A[j][k]
+si pentru ca acum j este linia, k-ul(coloana) va trebui sa inceapa de la j analog pe ideea
+anterior prezentata.
+
+2. opt
+
+Am inceput de la implementarea neopt in care am pastrat structura si algoritmul trivial
+de calcul al inmultirilor. O prima optimizare pe care am facut-o a fost sa fac register
+spam si anume sa pun toate variabilele(inafara de vectorii propriu-zisi) drept registrii
+incepand cu indexii. Asa ca in loc sa folosesc N-ul primit ca parametru l-am stocat intr-un
+register int numit size pentru a-l accesa mai usor. Pentru a nu mai face calculul N * N la
+fiecare iteratie a parcurgerii vectorului l-am stocat intr-o variabila size_squared.
+
+Apoi m-am pus sa reordonez buclele pentru a accesa cache-ul doar secvential sau constant.
+Buclele in care faceam inmultirea cu matricea triunghiulara erau deja ordonate cum trebuie
+datorita modului in care le-am ordonat initial pentru a putea ignora elementele care sunt 0
+din matricea triunghiulara. Ce a trebuit sa reordonez a fost bucla in care inmulteam B cu
+B**T. Initial a fost modul natural in care ai scrie buclele si anume i, j, k.
+Formula e C[i][j] = B[k][i] + B[k][j]. Cum i si j sunt in buclele exterioare, atunci C
+va fi accesat constant ca valoarea sa va fi constanta de-a lungul parcurgerii buclei k.
+Problema era ca B-ul era accesat nesecvential in ambele cazuri pentru ca era parcurs pe
+coloane cand eu am matricea stocata pe linii. In ambele accesari linia este k care este
+parcurs in bucla interioara si astfel la fiecare iteratie va fi accesata o alta linie,
+lucru care creeaza o multime de miss-uri la cache. L-am ordonat in final k, i, j pentru ca:
+-C[i][j] este accesat secvential ca i-ul e deasupra lui j si linia ramane constanta si
+se schimba doar j-ul incremental care e coloana
+-B[k][i] este accesat constant pentru ca de-a lungul parcurgerii lui j, k si i raman
+constante
+-B[k][j] e accesat secvential pentru ca linia(k) e constanta, in timp ce bucla interioara
+j este incrementata secvential si astfel la prima accesare a liniei aceasta este pusa in cache
+(localizare spatiala) si este folosita si accesata de-a lungul buclei j fara a genera
+cache miss-uri
+
+Am mentionat mai devreme ca B[k][i] este constant de-a lungul parcurgerii, asa ca in loc
+sa-l accesez din memoria cache de fiecare data, o optimizare ar fi sa il stochez inainte
+de bucla j intr-un registru pentru a fi accesat mai rapid de-a lungul parcurgerii. Am facut
+asa si cu constantele din celelalte 2 inmultiri. In prima inmultire B[i][k] e constant pentru
+ca i si k sunt buclele periferice si asa ca il salvez intr-o variabila. E umpic mai speciala
+modificarea de la a doua inmultire ca elementul care se calculeaza e cel care e accesat constant si
+anume cel din stanga assignment-ului. Am initializat astfel inainte de bucla o variabila registru
+sum cu 0 si am tot adaugat in aceasta variabila de-a lungul buclei k si la terminarea acesteia
+stochez suma calculata in elementul care trebuia calculat.
+
+Pentru ca am ordonat buclele pentru accesare in cel mai rau caz secventiala a elementelor
+matricilor s-a ajuns ca linia sa fie mereu constanta de-a lungul parcurgerii interioare.
+Astfel, spre exemplu la prima inmultire C[i * N + j] += constant * A[k * N + j] fac
+aceleasi inmultiri de N ori de-a lungul buclei si anume i * N si k * N. O optimizare este
+ca aceasta inmultire sa o fac direct interior buclei reprezentative. Astfel i * N il fac la
+inceputul iteratiei din bucla i si k * N la inceputul iteratiei din bucla k. Scad semnificativ
+astfel numarul de inmultiri pentru ca ma folosesc de aceste constante stocate intr-o variabila
+in loc sa le tot calculez fara rost. Totusi o problema era ca inmultirile sunt costisitoare si
+trebuia sa fac i * N la fiecare iteratie, asa ca in loc sa fac asta am initializat variabila
+cu 0 inaintea buclei si tot adaugam N la fiecare iteratie care e practic echivalent cu i * N
+in cadrul iteratiei i.
+
+O alta optimizare pe care am incercat fara rezultat sa o aplic este loop unrolling. Ajunsesem
+la 10 secunde folosind loop unrolling cu dimensiunea unei bucle de 40 de operatii la toate
+buclele. Rezultat care era mai prost decat 8.3 secunde pe care il am fara loop unrolling asa
+ca am renuntat la optimizarea asta. Nu sunt sigur de ce n-a mers, dar ce era clar era ca in
+implementarea mea loop unrolling nu era optim.
+
+3. blas
+
+Pentru a pastra matricile A si B intacte ma folosesc de o matrice C intermediara pentru a stoca
+rezultatul functiilor blas. Aloc memorie pentru matricea C si apoi ma folosesc de dcopy pentru a
+copia datele din B in C. Storage spacing-ul il tin pe default care e 1 pentru ca am de gand sa
+parcurg B in mod normal.
+
+Ma folosesc de dtrmm pentru a face inmultirea dintre matricea C oarecare(care acum are B in ea) si
+matricea triunghiulara A. La toate inmultirile folosesc CblasRowMajor pentru ca matricile le am
+stocate pe linii. Side-ul este CblasRight pentru ca matricea superior triunghiulara o am pe dreapta.
+Cum matricea este superior triunghiulara am setat UPLO la CblasUpper. Insa vreau A netranspusa si
+nu stiu daca A e matrice triunghiulara unitara asa ca setez TRANSA si DIAG la CblasNoTrans si CblasNonUnit.
+Toate argumentele legate de dimensiuni le pun N pentru ca toate matricile cu care lucrez au dimensiuni
+de N x N. ALPHA il pun 1.0 pentru ca nu doresc sa inmultesc niciun scalar la rezultat. A va fi argumentul
+pentru matricea triunghiulara si C pentru matricea oarecare. Rezultatul C * A**T va fi stocat in C.
+
+Acum rezultatul din C il voi inmulti cu A**T. C este o matrice oarecare pentru ca inmultirea dintre o matrice
+oarecare si una triunghiulara este nedefinita. Ma folosesc tot de dtrmm cu C drept matricea oarecare si A ca
+matricea triunghiulara. Singura diferenta e ca setez campul TRANSA la CblasTrans pentru ca o sa am nevoie de
+transpusa lui A.
+
+Pentru a calcula B**T * B ma folosesc de dgemm care face inmultirea intre 2 matrici oarecare, B fiind oarecare
+si implicit si transpusa unei matrici oarecare poate fi orice asa ca o consider tot oarecare. Prima matrice
+e B**T asa TRANSA il setez la CblasTrans, iar cum a doua matrice din inmultire vreau sa fie B netranspus voi
+seta TRANSB la CblasNoTrans. Toate argumentele legate de dimensiuni le pun N pentru ca toate matricile cu
+care lucrez au dimensiuni de N x N. ALPHA il pun 1.0 pentru ca nu doresc sa inmultesc niciun scalar la rezultatul
+inmultirii. Ambele matrici participante la inmultire vor fi B(functia va calcula transpusa pentru primul argument matrice).
+dgemm are si o adunare inclusa si anume rezultatul inmultirii se va aduna cu al treilea argument matrice si rezultatul
+va fi stocat in acesta. Eu vreau ca rezultatul sa se adune cu C-ul ce contine rezultatul inmultirilor B * A * A**T.
+BETA il setez 1.0 pentru ca nu vreau sa inmultesc C-ul cu vreun scalar inainte de adunare. Dupa ce se termina de executat
+functia voia avea rezultatul total stocat in C si il voi returna.
+
+4. cache neopt
+
+Dupa rularea cachegrind-ului se vede observa urmatoarele:
+
+==2405477== I   refs:      5,925,069,086
+==2405477== I1  misses:            1,614
+==2405477== LLi misses:            1,535
+==2405477== I1  miss rate:          0.00%
+==2405477== LLi miss rate:          0.00%
+
+Sunt 5.925 miliarde de citiri de instructiuni dintre care doar 1614 dau miss pe I1, lucru care duce la un miss rate de 0%
+pentru 2 zecimale semnificative ceea ce este destul de bun. Ce este drept consider ca accesarea de instructiuni din cache
+este mai mult o problema a procesorului si a sistemului de operare fata de una a programatorului, motivul pentru care se si
+descurca asa de bine pentru ca nu e susceptibil la erori umane. Cele 1614 miss rate-uri pe I1 o sa incerce sa caute informatia
+in urmatorul nivel de cache si anume LL care duce la randul lui la 1535 de miss rate-uri. Asta inseamna ca doar 79 din cele
+1614 de citiri care au dat miss pe I1 s-au efectuat fara sa dea miss pe LL. Asta inseamna ca 95% din cele care dau miss pe primul
+nivel de cache vor da fail si pe al doilea nivel de cache, motiv care arata importanta unui prim nivel de cache bun si sa ai cat mai
+putine miss-uri pe I1, LL trebuind sa fie folosit doar in cazuri exceptionale.
+
+==2405477== D   refs:      2,963,221,943  (2,831,998,425 rd   + 131,223,518 wr)
+==2405477== D1  misses:      135,350,292  (  135,279,054 rd   +      71,238 wr)
+==2405477== LLd misses:           73,264  (       42,178 rd   +      31,086 wr)
+==2405477== D1  miss rate:           4.6% (          4.8%     +         0.1%  )
+==2405477== LLd miss rate:           0.0% (          0.0%     +         0.0%  )
+
+Problema se vede la citiri de date unde programatorul are mai multa responsabilitate. Din cele 2.963 miliarde de scrieri si citiri am
+avut 135k de misses pe D1 care duce la 4.6% missrate, un missrate destul de semnificativ. Pe de alta parta in cazul asta din cele
+135 milioane misses pe D1 doar 73k au dat miss pe LL cand au incercat sa cauta in nivelul 2 de cache ce n-au gasit in primul. De aceasta
+data doar 5.4 * 10^-4 dintre miss-urile pe D1 n-au gasit ce cautau in LL. Ceea ce arata importanta nivelului 2 de cache ca backup pentru
+nivelul 1 de date de cache. Probabil ca faptul ca erorile umane pot fi tratate prin intermediul nivelului 2 de cache, fata de cele care
+iau si hardware-ul pe nepregatite si astfel procesorul nu s-a gandit sa stocheze in LL cum ar fi miss-urile pe I1.
+
+Read-urile sunt semnificativ mai dese decat scrierile cum ne-am si astepta intr-un program normal. Important de observat faptul ca
+pe scrieri este doar 0.1% missrate fata de 4.8% pe citiri. Pentru ca citirile sunt asa dese si au miss rate asa mare un procesor care
+face citirile din cache foarte rapid este destul de important ca performanta sa nu fie influentata de numarul mare de miss-uri.
+In acest caz totusi miss-urile pe LL sunt aproape 50% din cele pe D1, motivul probabil e ca sunt in general putine miss-uri si cele
+care chiar se intampla iau hardware-ul pe nepregatite.
+
+==2405477== LL refs:         135,351,906  (  135,280,668 rd   +      71,238 wr)
+==2405477== LL misses:            74,799  (       43,713 rd   +      31,086 wr)
+==2405477== LL miss rate:            0.0% (          0.0%     +         0.0%  )
+
+LL am discutat si anterior. Numarul de citiri e practic suma citirilor pe D1 si I1 care au dat miss, iar numarul de scrieri e
+numarul de scrieri pe D1 care au dat miss. Totusi LL e destul de performant pentru ca pentru 1 cifra semnificativa are 0% missrate,
+asa ca aici e un motiv pentru care nu strica sa ai mai multe niveluri de cache.
+
+==2405477== Branches:        132,390,370  (  132,149,695 cond +     240,675 ind)
+==2405477== Mispredicts:         503,145  (      502,899 cond +         246 ind)
+==2405477== Mispred rate:            0.4% (          0.4%     +         0.1%   )
+
+Sunt destule branches, daca comparam la numarul de instructiuni citite vom avea ca 4.4% din acestea sunt branches. Dintre care majoritatea
+sunt conditionale care cel mai probabil sunt jump-urile din for-uri in urma comparatiei cu size sau size_squred. Cele indirecte sunt
+nesemnificative. 0.4% mispred rate nu l-as numi un procent neaparat bun punand la socoteala ca predictorii din ziua de azi tintesc catre
+0.01% mispred rate sau mai putin.
+
+5. cache opt
+
+Dupa rularea cachegrind-ului se vede observa urmatoarele:
+
+==2405659== I   refs:      2,604,126,895
+==2405659== I1  misses:            1,850
+==2405659== LLi misses:            1,747
+==2405659== I1  miss rate:          0.00%
+==2405659== LLi miss rate:          0.00%
+
+Sunt de 2 ori si umpic mai putin citiri de instructiuni fata de varianta neoptimizata. Lucru care probabil s-a produs datorita
+scaderii semnificative a operatiilor care se repeta si anume inmultirile pe care le stochez in registrele A_line, B_line, C_line si faptul
+ca nu se mai faceau inmultirile pentru index-ul elementului constant in bucla ca il stocam in registru inaintea buclei. I1 si LLi misses
+nu sunt cu mult diferite, desi la varianta optimizata sunt umpic mai multe. Sunt sanse ca diferenta asta de miss-uri sa nu fie atat de
+relevanta si sa fie mai mica sau negativa la alte rulari.
+
+==2405659== D   refs:        727,385,371  (628,562,958 rd   + 98,822,413 wr)
+==2405659== D1  misses:       16,630,668  ( 16,539,431 rd   +     91,237 wr)
+==2405659== LLd misses:           73,265  (     22,178 rd   +     51,087 wr)
+==2405659== D1  miss rate:           2.3% (        2.6%     +        0.1%  )
+==2405659== LLd miss rate:           0.0% (        0.0%     +        0.1%  )
+
+Folosind registre si stocand valori in acestea ne-a scazut numarul de scrieri si citiri de date de la 2.963 miliarde la 0.727 miliarde
+pentru ca procesorul nu mai trebuia sa mearga in cache sa caute informatiile pentru ca le avea in registre. Citirile si scrierile care au
+ramas sunt cele pe matrici. S-a imbunatatit si missrate-ul ajungand de la 4.6% la 2.3% datorita ordonarii buclelor pentru o utilizare
+mai buna a cache-ului prin accesarea in cel mai rau caz secventiala a liniilor din matrice. Desi numarul de scrieri a scazut, numarul de
+miss-uri pe scrieri a crescut, lucru interesant de observat desi nu imi vine un motiv anume in minte pentru schimbarea asta.
+
+==2405659== LL refs:          16,632,518  ( 16,541,281 rd   +     91,237 wr)
+==2405659== LL misses:            75,012  (     23,925 rd   +     51,087 wr)
+==2405659== LL miss rate:            0.0% (        0.0%     +        0.1%  )
+
+Desi numarul de citiri pe LL a scazut semnificativ datorita scaderii numarului de misses pe primul nivel de cache, numarul de miss-uri
+a ramas la fel. Aceste miss-uri tin probabil de sistemul de operare si este greu sa scapi de ele la nivelul codului.
+
+==2405659== Branches:         13,838,463  ( 13,597,778 cond +    240,685 ind)
+==2405659== Mispredicts:         634,516  (    634,268 cond +        248 ind)
+==2405659== Mispred rate:            4.6% (        4.7%     +        0.1%   )
+
+Lucrul care mi s-a parut cel mai ciudat, faptul ca procentul de mispred rate a sarit la 4.6%. Numarul de branches este de 10 ori mai mic fata
+de varianta optimizata, dar numarul de mispredicts a ramas asemanator, umpic mai mare in varianta optimizata lucru ce creste de vreo 10 ori
+mispred rate-ul. Asta imi spune ca optimizarile desi au reusit sa scada din timpul de executiei al programului prin reducerea de branches, acesta
+nu a reusit sa scape de branche-urile cu adevarat problematice care nu pot fi prezise de predictor. Sau mispredict-urile tin de sistemul de
+operare si nu ai ce sa le faci.
+
+6. cache blas
+
+Dupa rularea cachegrind-ului se vede observa urmatoarele:
+
+==2185692== I   refs:      247,990,938
+==2185692== I1  misses:         16,498
+==2185692== LLi misses:          3,207
+==2185692== I1  miss rate:        0.01%
+==2185692== LLi miss rate:        0.00%
+
+Citirile de instructiuni sunt semnificativ mai putine. Reusind sa aiba de aproape 21 ori mai putine citiri fata de varianta mea optimizata si
+de vreo 42 ori mai putine decat cea neoptimizata. Totusi se vede ca optimizarile facute pentru blas sunt umpic mai neortodoxe ca au crescut numarul
+de miss-uri. Desi are de 42 ori mai putine citiri, are de vreo 10 ori mai multe miss-uri decat varianta neoptimizata. Am observat si in cazul variantei
+mele optimizate o crestere mica a miss-urilor datorita optimizarilor implementate. Totusi vad ca se foloseste eficient de LL pentru ca o buna parte dintre
+miss-uri sunt interceptate de acesta, insa in final tot ramane cu de 2 ori mai multe miss-uri decat varianta mea neoptimizata.
+
+==2185692== D   refs:       92,539,239  (86,894,624 rd   + 5,644,615 wr)
+==2185692== D1  misses:      1,604,342  ( 1,342,380 rd   +   261,962 wr)
+==2185692== LLd misses:         97,015  (    11,734 rd   +    85,281 wr)
+==2185692== D1  miss rate:         1.7% (       1.5%     +       4.6%  )
+==2185692== LLd miss rate:         0.1% (       0.0%     +       1.5%  )
+
+Si in acest aspect performeaza foarte bine pentru ca are de 8 ori mai putine citiri si scrieri pe cache-ul de date decat varianta mea optimizata si de
+10 ori mai putine miss-uri lucru ce duce la un missrate pe D1 de doar 1.7%. Insa ca si in cazul variantei mele optimizate au crescut numarul de miss-uri
+la scrierile de date si s-a ajuns la un missrate de 4.6% care nu afecteaza asa mult performanta ca nu sunt asa multe scrieri comparativ cu citiri.
+
+==2185692== LL refs:         1,620,840  ( 1,358,878 rd   +   261,962 wr)
+==2185692== LL misses:         100,222  (    14,941 rd   +    85,281 wr)
+==2185692== LL miss rate:          0.0% (       0.0%     +       1.5%  )
+
+Cum au scazut miss-urile de citiri pe primul nivel au scazut si citirile pe LL. Totusi cresterea de miss-uri de scriere de date a dus la o crestere a
+numarului de scrieri pe LL, avand un miss rate de 1.5% pe scrieri.
+
+==2185692== Branches:        4,434,119  ( 4,178,623 cond +   255,496 ind)
+==2185692== Mispredicts:        68,408  (    67,480 cond +       928 ind)
+==2185692== Mispred rate:          1.5% (       1.6%     +       0.4%   )
+
+La capitolul branches desi tot s-a descurcat cu mult mai bine, in acest caz macar varianta mea de optimizare e comparabila fiind de doar de 3 ori mai proasta.
+Pe langa asta pare ca s-a descurcat mai bine blas cu mispredict-urile datorate optimizarilor ajungand la un mispred rate de 1.5% care e mai bun decat 4.6%
+cat am reusit eu. Lucru care imi zice ca puteam sa scad numarul de mispredicts in varianta mea.
+
+7. analiza comparativa
+
+Input-ul folosit pentru rulare este:
+
+6
+160 50 out0
+400 123 out1
+600 235 out5
+800 456 out2
+1200 789 out3
+1600 367 out4
+
+Am rulat 6 teste distribuite relativ uniform pentru a avea un grafic cat de cat reprezentativ. Pentru ca pot exista
+anumite diferinte de la o rulare la alta am decis sa rulez testele de 5 ori pentru fiecare algoritm si sa calculez media
+intre cele 5 rulari si pe aceea sa o folosesc pentru grafic. Un exemplu in care o astfel de medie este relevanta este varianta
+neoptimizata cu N = 800 ce a avut in cele 5 rulari urmatorii timpi: 10.058836, 9.104427, 10.048355, 9.096027, 9.020124.
+In aceasta situatie sunt 2 extreme care au loc, una aproape de 9 secunde si una aproape de 10 secunde. Daca as fi folosit
+spre exemplu o singura rulare ce ar fi dat 10 secunde nu ar fi fost deloc reprezentativa pentru situatiile in care rularea ar fi
+durat in jur 9 secunde. Facand media intre aceste 5 rulari am 9.4655538 care desi nu este perfect, macar reprezinta intr-o margine
+de eroare mai mica cele 2 extreme.
+
+O sa adaug mai jos mediile care mi-au iesit pentru cei 3 algoritmi. Pentru sample-urile folosite(cele 5 rulari per algoritm) se
+poate vizita fisierul RUNS.
+
+Run=./tema2_neopt: N=160: Time=0.0693348
+Run=./tema2_neopt: N=400: Time=1.1348032
+Run=./tema2_neopt: N=600: Time=4.1014414
+Run=./tema2_neopt: N=800: Time=9.4655538
+Run=./tema2_neopt: N=1200: Time=33.0018402
+Run=./tema2_neopt: N=1600: Time=87.973796
+
+Run=./tema2_opt_m: N=160: Time=0.0214768
+Run=./tema2_opt_m: N=400: Time=0.3159568
+Run=./tema2_opt_m: N=600: Time=1.0539558
+Run=./tema2_opt_m: N=800: Time=2.4732188
+Run=./tema2_opt_m: N=1200: Time=8.3517322
+Run=./tema2_opt_m: N=1600: Time=20.698823
+
+Run=./tema2_blas: N=160: Time=0.003619
+Run=./tema2_blas: N=400: Time=0.0376774
+Run=./tema2_blas: N=600: Time=0.1250558
+Run=./tema2_blas: N=800: Time=0.2774606
+Run=./tema2_blas: N=1200: Time=0.9137306
+Run=./tema2_blas: N=1600: Time=2.1415984
+
+Se vede ca timpul nu creste direct proportional cu N ci mai degraba polinomial, lucru mai bine vizibil pentru varianta neoptimizata
+pe grafic. Se observa utilitatea optimizarilor facute care au mai plafonat din timpi, reusind astfel pe varianta optimizata
+sa aiba un timp de 1.65 mai mic pentru N=1600 fata de varianta neoptimizata pentru N=1200. Daca ar fi sa ne uitam daca
+diferenta dintre ele creste putem sa facem diferenta dintre extreme si anume N=160 si N=1600. Pentru N=160 varianta optimizata
+este de 3.33 mai rapida, pentru N=1600 este de 4.25 mai rapida. Lucru ce arata o crestere in diferenta dintre cele 2 variante
+la cresterea lui N, desi complexitatea celor 2 variante este aceeasi. Daca ar fi sa fac acelasi lucru intre varianta optimizata
+si blas reiese ca pentru N=160 blas este de 5.93 mai rapid, iar pentru N=1600 este de 9.66 de ori mai rapid. Se vede ca diferenta
+creste mult mai abrupt fata de diferenta dintre varianta optimizata si neoptimizata. Pe langa optimizarile mult mai bune din blas,
+aceasta diferenta ce creste abrupt poate fi realizata de o diferenta de complexitate intre algoritmii folositi pentru inmultirea
+de matrici. Eu folosind varianta triviala de O(n^3), blas putand folosi Strassen care este O(n^2.8). Diferenta dintre blas si
+varianta neoptimizata ar fi si mai abrupta pentru ca s-ar pune la socoteala si diferenta continua de crestere dintre optimizata
+si neoptimizata.
+
+Pe grafic se vede clar superioritatea lui blas care pare ca si cum ar fi constant aproape de 0 datorita faptului ca in 5 din
+6 teste are timpul de executie sub 1 si limita lui y este la 100 datorita timpului mare de executie al variantei neoptimizate.
+Se vede faptul ca nu e o constanta intre N=1200 si N=1600 pentru ca se trece de la o valoare subunitara la 2 secunde. Varianta
+neoptimizata pare ca merge din ce in ce mai rapid in sus datorita faptului ca codul scris neingenios accentuaza complexitatea
+precara de O(n^3). Varianta optimizata pare mai plafonata si nu pare ca creste accelerat precum varianta neoptimizata,
+astfel observandu-se cu adevarat avantajul optimizarilor ce nu tin neaparat de algoritmi sau complexitate ci mai degraba de
+cum trateaza programatorul hardware-ul.
